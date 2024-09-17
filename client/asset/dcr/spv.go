@@ -22,14 +22,13 @@ import (
 	"decred.org/dcrdex/client/asset"
 	"decred.org/dcrdex/dex"
 	"decred.org/dcrdex/dex/utils"
-	"decred.org/dcrwallet/v4/chain"
-	walleterrors "decred.org/dcrwallet/v4/errors"
-	"decred.org/dcrwallet/v4/p2p"
-	walletjson "decred.org/dcrwallet/v4/rpc/jsonrpc/types"
-	"decred.org/dcrwallet/v4/spv"
-	vspclient "decred.org/dcrwallet/v4/vsp"
-	"decred.org/dcrwallet/v4/wallet"
-	"decred.org/dcrwallet/v4/wallet/udb"
+	"decred.org/dcrwallet/v5/chain"
+	walleterrors "decred.org/dcrwallet/v5/errors"
+	"decred.org/dcrwallet/v5/p2p"
+	walletjson "decred.org/dcrwallet/v5/rpc/jsonrpc/types"
+	"decred.org/dcrwallet/v5/spv"
+	"decred.org/dcrwallet/v5/wallet"
+	"decred.org/dcrwallet/v5/wallet/udb"
 	"github.com/decred/dcrd/addrmgr/v2"
 	"github.com/decred/dcrd/blockchain/stake/v5"
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -97,6 +96,7 @@ type dcrWallet interface {
 	SetTSpendPolicy(ctx context.Context, tspendHash *chainhash.Hash, policy stake.TreasuryVoteT, ticketHash *chainhash.Hash) error
 	SetTreasuryKeyPolicy(ctx context.Context, pikey []byte, policy stake.TreasuryVoteT, ticketHash *chainhash.Hash) error
 	SetRelayFee(relayFee dcrutil.Amount)
+	NewVSPClient(cfg wallet.VSPClientConfig, log slog.Logger) (*wallet.VSPClient, error)
 	GetTicketInfo(ctx context.Context, hash *chainhash.Hash) (*wallet.TicketSummary, *wire.BlockHeader, error)
 	GetTransactions(ctx context.Context, f func(*wallet.Block) (bool, error), startBlock, endBlock *wallet.BlockIdentifier) error
 	ListSinceBlock(ctx context.Context, start, end, syncHeight int32) ([]walletjson.ListTransactionsResult, error)
@@ -1049,18 +1049,16 @@ func (w *spvWallet) StakeInfo(ctx context.Context) (*wallet.StakeInfoData, error
 	return w.dcrWallet.StakeInfo(ctx)
 }
 
-func (w *spvWallet) newVSPClient(vspHost, vspPubKey string, log dex.Logger) (*vspclient.Client, error) {
-	return vspclient.New(vspclient.Config{
+func (w *spvWallet) newVSPClient(vspHost, vspPubKey string, log dex.Logger) (*wallet.VSPClient, error) {
+	return w.NewVSPClient(wallet.VSPClientConfig{
 		URL:    vspHost,
 		PubKey: vspPubKey,
 		Dialer: new(net.Dialer).DialContext,
-		Wallet: w.dcrWallet.(*extendedWallet).Wallet,
-		Policy: &vspclient.Policy{
+		Policy: &wallet.VSPPolicy{
 			MaxFee:     0.2e8,
 			FeeAcct:    0,
 			ChangeAcct: 0,
 		},
-		Params: w.chainParams,
 	}, log)
 }
 
@@ -1078,10 +1076,9 @@ func (w *spvWallet) PurchaseTickets(ctx context.Context, n int, vspHost, vspPubK
 	}
 
 	req := &wallet.PurchaseTicketsRequest{
-		Count:                n,
-		VSPFeePaymentProcess: vspClient.Process,
-		VSPFeePercent:        vspClient.FeePercentage,
-		Mixing:               mixing,
+		Count:     n,
+		Mixing:    mixing,
+		VSPClient: vspClient,
 	}
 
 	if mixing {
@@ -1337,7 +1334,7 @@ func (w *spvWallet) SetVotingPreferences(ctx context.Context, choices, tspendPol
 			return err
 		}
 	}
-	clientCache := make(map[string]*vspclient.Client)
+	clientCache := make(map[string]*wallet.VSPClient)
 	// Set voting preferences for VSPs. Continuing for all errors.
 	// NOTE: Doing this in an unmetered loop like this is a privacy breaker.
 	return w.dcrWallet.ForUnspentUnexpiredTickets(ctx, func(hash *chainhash.Hash) error {

@@ -15,11 +15,11 @@ import (
 	"decred.org/dcrdex/client/asset"
 	"decred.org/dcrdex/dex"
 	"decred.org/dcrdex/dex/encode"
-	walleterrors "decred.org/dcrwallet/v4/errors"
-	"decred.org/dcrwallet/v4/p2p"
-	walletjson "decred.org/dcrwallet/v4/rpc/jsonrpc/types"
-	"decred.org/dcrwallet/v4/wallet"
-	"decred.org/dcrwallet/v4/wallet/udb"
+	walleterrors "decred.org/dcrwallet/v5/errors"
+	"decred.org/dcrwallet/v5/p2p"
+	walletjson "decred.org/dcrwallet/v5/rpc/jsonrpc/types"
+	"decred.org/dcrwallet/v5/wallet"
+	"decred.org/dcrwallet/v5/wallet/udb"
 	"github.com/decred/dcrd/blockchain/stake/v5"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
@@ -30,6 +30,7 @@ import (
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
+	"github.com/decred/slog"
 )
 
 type tDcrWallet struct {
@@ -199,6 +200,10 @@ func (w *tDcrWallet) makeBlocks(from, to int32) {
 
 func (w *tDcrWallet) BlockInfo(ctx context.Context, blockID *wallet.BlockIdentifier) (*wallet.BlockInfo, error) {
 	return w.blockInfo[blockIDHeight(blockID)], w.blockInfoErr
+}
+
+func (w *tDcrWallet) NewVSPClient(cfg wallet.VSPClientConfig, log slog.Logger) (*wallet.VSPClient, error) {
+	return nil, fmt.Errorf("not stubbed")
 }
 
 func (w *tDcrWallet) AccountHasPassphrase(ctx context.Context, account uint32) (bool, error) {
